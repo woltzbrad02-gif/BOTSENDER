@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Bot Message Sender</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* CSS variables for theming */
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: rgba(255, 255, 255, 0.05);
+            --bg-tertiary: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #1d4ed8;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --gradient: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        }
+
+        /* Light mode variables */
+        html.light-mode {
+            --bg-primary: #f8fafc;
+            --bg-secondary: rgba(59, 130, 246, 0.08);
+            --bg-tertiary: rgba(59, 130, 246, 0.12);
+            --text-primary: #1e293b;
+            --text-secondary: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(59, 130, 246, 0.2);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #2563eb;
+        }
+
+        /* Body and main container */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Main container with glassmorphism effect */
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 40px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.6s ease-out;
+        }
+
+        /* Header section */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            gap: 16px;
+        }
+
+        /* Title styling */
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Dark mode toggle button */
+        .theme-toggle {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .theme-toggle:hover {
+            background: var(--accent-primary);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        /* Form group styling */
+        .form-group {
+            margin-bottom: 24px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .form-group:nth-child(1) { animation-delay: 0.1s; }
+        .form-group:nth-child(2) { animation-delay: 0.2s; }
+        .form-group:nth-child(3) { animation-delay: 0.3s; }
+
+        /* Label styling */
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Input and textarea base styles */
+        input,
+        textarea {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            resize: none;
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        html.light-mode input::placeholder,
+        html.light-mode textarea::placeholder {
+            color: rgba(30, 41, 59, 0.4);
+        }
+
+        /* Input focus state */
+        input:focus,
+        textarea:focus {
+            outline: none;
+            background: var(--bg-tertiary);
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Textarea specific styles */
+        textarea {
+            font-family: 'Courier New', monospace;
+            line-height: 1.5;
+            min-height: 120px;
+        }
+
+        /* Character counter */
+        .char-counter {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-align: right;
+        }
+
+        /* Chat ID container with copy button */
+        .input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-group input {
+            flex: 1;
+        }
+
+        /* Copy button styling */
+        .copy-btn {
+            padding: 14px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+        }
+
+        .copy-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Buttons container */
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 32px;
+            animation: fadeIn 0.6s ease-out 0.4s both;
+        }
+
+        /* Button base styles */
+        button {
+            flex: 1;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        /* Send button */
+        .send-btn {
+            background: var(--gradient);
+            color: white;
+            flex: 2;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(59, 130, 246, 0.3);
+        }
+
+        .send-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        /* Clear button */
+        .clear-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .clear-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: var(--error-color);
+            color: var(--error-color);
+        }
+
+        /* Spinner animation */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Status area */
+        .status {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            text-align: center;
+            animation: slideDown 0.3s ease-out;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        /* Success status */
+        .status.success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        /* Error status */
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error-color);
+            color: var(--error-color);
+        }
+
+        /* Animations */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Responsive design for mobile */
+        @media (max-width: 480px) {
+            .container {
+                padding: 24px;
+                border-radius: 20px;
+            }
+
+            .title {
+                font-size: 22px;
+            }
+
+            button {
+                padding: 12px 16px;
+                font-size: 13px;
+            }
+
+            .button-group {
+                gap: 8px;
+            }
+
+            .header {
+                margin-bottom: 24px;
+            }
+
+            .form-group {
+                margin-bottom: 20px;
+            }
+        }
+
+        /* Copied feedback animation */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .copy-btn.copied {
+            animation: pulse 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main container -->
+    <div class="container">
+        <!-- Header with title and theme toggle -->
+        <div class="header">
+            <h1 class="title">Telegram Bot</h1>
+            <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode">🌙</button>
+        </div>
+
+        <!-- Main form -->
+        <form id="botForm">
+            <!-- Bot Token input group -->
+            <div class="form-group">
+                <label for="token">Bot Token</label>
+                <input
+                    type="password"
+                    id="token"
+                    placeholder="Enter Bot Token"
+                    required
+                >
+            </div>
+
+            <!-- Chat ID input group with copy button -->
+            <div class="form-group">
+                <label for="chatId">Chat ID</label>
+                <div class="input-group">
+                    <input
+                        type="text"
+                        id="chatId"
+                        placeholder="Enter Chat ID"
+                        required
+                    >
+                    <button type="button" class="copy-btn" id="copyBtn" title="Copy Chat ID">📋</button>
+                </div>
+            </div>
+
+            <!-- Message textarea with character counter -->
+            <div class="form-group">
+                <label for="message">Message</label>
+                <textarea
+                    id="message"
+                    placeholder="Type your message here..."
+                    required
+                ></textarea>
+                <div class="char-counter">
+                    <span id="charCount">0</span> characters
+                </div>
+            </div>
+
+            <!-- Send and Clear buttons -->
+            <div class="button-group">
+                <button type="submit" class="send-btn" id="sendBtn">
+                    Send Message
+                </button>
+                <button type="button" class="clear-btn" id="clearBtn">Clear</button>
+            </div>
+        </form>
+
+        <!-- Status message area -->
+        <div class="status" id="status"></div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // ============================================
+        // DOM Elements
+        // ============================================
+        const tokenInput = document.getElementById('token');
+        const chatIdInput = document.getElementById('chatId');
+        const messageInput = document.getElementById('message');
+        const sendBtn = document.getElementById('sendBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const statusDiv = document.getElementById('status');
+        const charCount = document.getElementById('charCount');
+        const themeToggle = document.getElementById('themeToggle');
+        const form = document.getElementById('botForm');
+
+        // ============================================
+        // localStorage Keys
+        // ============================================
+        const STORAGE_KEYS = {
+            TOKEN: 'telegram_bot_token',
+            CHAT_ID: 'telegram_chat_id',
+            THEME: 'theme_preference'
+        };
+
+        // ============================================
+        // Initialize app on page load
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSavedData();
+            initializeTheme();
+            setupEventListeners();
+        });
+
+        // ============================================
+        // Load saved data from localStorage
+        // ============================================
+        function loadSavedData() {
+            const savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
+            const savedChatId = localStorage.getItem(STORAGE_KEYS.CHAT_ID);
+
+            if (savedToken) tokenInput.value = savedToken;
+            if (savedChatId) chatIdInput.value = savedChatId;
+        }
+
+        // ============================================
+        // Theme initialization and toggle
+        // ============================================
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark';
+            applyTheme(savedTheme);
+        }
+
+        function applyTheme(theme) {
+            const html = document.documentElement;
+            if (theme === 'light') {
+                html.classList.add('light-mode');
+                themeToggle.textContent = '☀️';
+            } else {
+                html.classList.remove('light-mode');
+                themeToggle.textContent = '🌙';
+            }
+            localStorage.setItem(STORAGE_KEYS.THEME, theme);
+        }
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.classList.contains('light-mode') ? 'light' : 'dark';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            applyTheme(newTheme);
+        });
+
+        // ============================================
+        // Setup event listeners
+        // ============================================
+        function setupEventListeners() {
+            // Form submission
+            form.addEventListener('submit', handleSendMessage);
+
+            // Clear button
+            clearBtn.addEventListener('click', handleClear);
+
+            // Copy button
+            copyBtn.addEventListener('click', handleCopyId);
+
+            // Character counter
+            messageInput.addEventListener('input', updateCharCounter);
+
+            // Auto-resize textarea
+            messageInput.addEventListener('input', autoResizeTextarea);
+
+            // Ctrl+Enter to send
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    form.dispatchEvent(new Event('submit'));
+                }
+            });
+
+            // Save data to localStorage on input
+            tokenInput.addEventListener('blur', () => {
+                localStorage.setItem(STORAGE_KEYS.TOKEN, tokenInput.value);
+            });
+
+            chatIdInput.addEventListener('blur', () => {
+                localStorage.setItem(STORAGE_KEYS.CHAT_ID, chatIdInput.value);
+            });
+        }
+
+        // ============================================
+        // Update character counter
+        // ============================================
+        function updateCharCounter() {
+            charCount.textContent = messageInput.value.length;
+        }
+
+        // ============================================
+        // Auto-resize textarea
+        // ============================================
+        function autoResizeTextarea() {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = (messageInput.scrollHeight) + 'px';
+        }
+
+        // ============================================
+        // Validate form inputs
+        // ============================================
+        function validateInputs() {
+            const token = tokenInput.value.trim();
+            const chatId = chatIdInput.value.trim();
+            const message = messageInput.value.trim();
+
+            if (!token) {
+                showStatus('Bot token is required', 'error');
+                return false;
+            }
+
+            if (!chatId) {
+                showStatus('Chat ID is required', 'error');
+                return false;
+            }
+
+            if (!message) {
+                showStatus('Message is required', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        // ============================================
+        // Handle send message
+        // ============================================
+        async function handleSendMessage(e) {
+            e.preventDefault();
+
+            // Validate inputs
+            if (!validateInputs()) {
+                return;
+            }
+
+            const token = tokenInput.value.trim();
+            const chatId = chatIdInput.value.trim();
+            const message = messageInput.value.trim();
+
+            // Disable button and show loading state
+            sendBtn.disabled = true;
+            const originalText = sendBtn.textContent;
+            sendBtn.innerHTML = '<span class="spinner"></span> Sending...';
+
+            try {
+                // Send POST request to Telegram API
+                const response = await fetch(
+                    `https://api.telegram.org/bot${token}/sendMessage`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            chat_id: chatId,
+                            text: message
+                        })
+                    }
+                );
+
+                // Parse response
+                const data = await response.json();
+
+                // Handle response
+                if (data.ok) {
+                    showStatus('✅ Message sent successfully!', 'success');
+                    messageInput.value = '';
+                    charCount.textContent = '0';
+                    messageInput.style.height = 'auto';
+                } else {
+                    // Show Telegram error description
+                    showStatus(data.description || 'Failed to send message', 'error');
+                }
+            } catch (error) {
+                // Show network error
+                showStatus('Unable to connect to Telegram', 'error');
+                console.error('Error:', error);
+            } finally {
+                // Restore button state
+                sendBtn.disabled = false;
+                sendBtn.textContent = originalText;
+            }
+        }
+
+        // ============================================
+        // Handle clear form
+        // ============================================
+        function handleClear() {
+            messageInput.value = '';
+            charCount.textContent = '0';
+            messageInput.style.height = 'auto';
+            statusDiv.classList.remove('show');
+        }
+
+        // ============================================
+        // Handle copy Chat ID
+        // ============================================
+        function handleCopyId() {
+            const chatId = chatIdInput.value.trim();
+
+            if (!chatId) {
+                showStatus('Chat ID is empty', 'error');
+                return;
+            }
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(chatId).then(() => {
+                // Show feedback animation
+                copyBtn.classList.add('copied');
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✓';
+
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    copyBtn.textContent = originalText;
+                }, 1500);
+            }).catch(() => {
+                showStatus('Failed to copy Chat ID', 'error');
+            });
+        }
+
+        // ============================================
+        // Show status message
+        // ============================================
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status show ${type}`;
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusDiv.classList.remove('show');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
