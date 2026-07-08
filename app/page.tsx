@@ -1,11 +1,20 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Copy, Trash2, Moon, Sun } from 'lucide-react';
+import { Send, Copy, Trash2, Moon, Sun, Plus } from 'lucide-react';
+
+interface BotConfig {
+  id: string;
+  token: string;
+  chatId: string;
+  name: string;
+}
 
 export default function Page() {
-  const [botToken, setBotToken] = useState('');
-  const [chatId, setChatId] = useState('');
+  const [bots, setBots] = useState<BotConfig[]>([]);
+  const [newBotToken, setNewBotToken] = useState('');
+  const [newChatId, setNewChatId] = useState('');
+  const [newBotName, setNewBotName] = useState('');
   const [message, setMessage] = useState('');
   const [isDark, setIsDark] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -16,15 +25,14 @@ export default function Page() {
     const saved = localStorage.getItem('telegramBotSender');
     if (saved) {
       const data = JSON.parse(saved);
-      setBotToken(data.botToken || '');
-      setChatId(data.chatId || '');
+      setBots(data.bots || []);
       setIsDark(data.isDark || false);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('telegramBotSender', JSON.stringify({ botToken, chatId, isDark }));
-  }, [botToken, chatId, isDark]);
+    localStorage.setItem('telegramBotSender', JSON.stringify({ bots, isDark }));
+  }, [bots, isDark]);
 
   useEffect(() => {
     if (isDark) {
@@ -41,19 +49,46 @@ export default function Page() {
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(chatId);
-    setStatus({ type: 'success', text: 'Chat ID copied!' });
+  const addBot = () => {
+    if (!newBotToken.trim()) {
+      setStatus({ type: 'error', text: 'Please enter a bot token' });
+      return;
+    }
+    if (!newChatId.trim()) {
+      setStatus({ type: 'error', text: 'Please enter a chat ID' });
+      return;
+    }
+
+    const newBot: BotConfig = {
+      id: Date.now().toString(),
+      token: newBotToken,
+      chatId: newChatId,
+      name: newBotName || `Bot ${bots.length + 1}`,
+    };
+
+    setBots([...bots, newBot]);
+    setNewBotToken('');
+    setNewChatId('');
+    setNewBotName('');
+    setStatus({ type: 'success', text: 'Bot added successfully!' });
     setTimeout(() => setStatus({ type: null, text: '' }), 2000);
   };
 
-  const sendMessage = async () => {
-    if (!botToken.trim()) {
-      setStatus({ type: 'error', text: 'Please enter your bot token' });
-      return;
-    }
-    if (!chatId.trim()) {
-      setStatus({ type: 'error', text: 'Please enter chat ID' });
+  const removeBot = (id: string) => {
+    setBots(bots.filter(bot => bot.id !== id));
+    setStatus({ type: 'success', text: 'Bot removed' });
+    setTimeout(() => setStatus({ type: null, text: '' }), 2000);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setStatus({ type: 'success', text: 'Copied!' });
+    setTimeout(() => setStatus({ type: null, text: '' }), 2000);
+  };
+
+  const sendMessageToAllBots = async () => {
+    if (bots.length === 0) {
+      setStatus({ type: 'error', text: 'Please add at least one bot' });
       return;
     }
     if (!message.trim()) {
@@ -62,25 +97,37 @@ export default function Page() {
     }
 
     setIsLoading(true);
-    try {
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: message }),
-      });
+    let successCount = 0;
+    let failureCount = 0;
 
-      const data = await response.json();
-      if (data.ok) {
-        setStatus({ type: 'success', text: 'Message sent successfully!' });
-        setMessage('');
-        autoExpandTextarea();
-      } else {
-        setStatus({ type: 'error', text: `Error: ${data.description}` });
+    for (const bot of bots) {
+      try {
+        const response = await fetch(`https://api.telegram.org/bot${bot.token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: bot.chatId, text: message }),
+        });
+
+        const data = await response.json();
+        if (data.ok) {
+          successCount++;
+        } else {
+          failureCount++;
+        }
+      } catch (error) {
+        failureCount++;
       }
-    } catch (error) {
-      setStatus({ type: 'error', text: 'Network error. Check your connection.' });
     }
+
     setIsLoading(false);
+    if (failureCount === 0) {
+      setStatus({ type: 'success', text: `Message sent to all ${successCount} bot(s)!` });
+      setMessage('');
+      autoExpandTextarea();
+    } else {
+      setStatus({ type: 'error', text: `Sent: ${successCount}, Failed: ${failureCount}` });
+    }
+    setTimeout(() => setStatus({ type: null, text: '' }), 3000);
   };
 
   return (
@@ -114,50 +161,99 @@ export default function Page() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 flex items-center justify-center py-8 px-4">
-          <div className="w-full max-w-2xl">
+        <main className="flex-1 py-8 px-4">
+          <div className="w-full max-w-3xl mx-auto">
             <div className={`rounded-2xl shadow-xl backdrop-blur-sm p-8 border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white/90 border-blue-200'}`}>
-              {/* Bot Token */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold mb-2">Bot Token</label>
-                <input
-                  type="password"
-                  value={botToken}
-                  onChange={(e) => setBotToken(e.target.value)}
-                  placeholder="123456:ABCdefGHIjklmnoPQRstuvWXYZ"
-                  className={`w-full px-4 py-3 rounded-lg border transition-all focus:outline-none focus:ring-2 ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 focus:ring-blue-500 text-white placeholder-gray-500'
-                      : 'bg-gray-50 border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
-                  }`}
-                />
-              </div>
-
-              {/* Chat ID */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold mb-2">Chat ID</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={chatId}
-                    onChange={(e) => setChatId(e.target.value)}
-                    placeholder="e.g., 123456789"
-                    className={`flex-1 px-4 py-3 rounded-lg border transition-all focus:outline-none focus:ring-2 ${
-                      isDark
-                        ? 'bg-slate-700 border-slate-600 focus:ring-blue-500 text-white placeholder-gray-500'
-                        : 'bg-gray-50 border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
-                    }`}
-                  />
+              {/* Bot Configuration Section */}
+              <div className="mb-8">
+                <h2 className="text-lg font-bold mb-4">Manage Bots</h2>
+                <div className={`p-4 rounded-lg border ${isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="grid gap-3 md:grid-cols-3 md:gap-2 mb-3">
+                    <input
+                      type="text"
+                      value={newBotName}
+                      onChange={(e) => setNewBotName(e.target.value)}
+                      placeholder="Bot name (e.g., 'News Bot')"
+                      className={`px-3 py-2 rounded-lg border text-sm transition-all focus:outline-none focus:ring-2 ${
+                        isDark
+                          ? 'bg-slate-600 border-slate-500 focus:ring-blue-500 text-white placeholder-gray-400'
+                          : 'bg-white border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
+                      }`}
+                    />
+                    <input
+                      type="password"
+                      value={newBotToken}
+                      onChange={(e) => setNewBotToken(e.target.value)}
+                      placeholder="Bot token"
+                      className={`px-3 py-2 rounded-lg border text-sm transition-all focus:outline-none focus:ring-2 ${
+                        isDark
+                          ? 'bg-slate-600 border-slate-500 focus:ring-blue-500 text-white placeholder-gray-400'
+                          : 'bg-white border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
+                      }`}
+                    />
+                    <input
+                      type="text"
+                      value={newChatId}
+                      onChange={(e) => setNewChatId(e.target.value)}
+                      placeholder="Chat ID"
+                      className={`px-3 py-2 rounded-lg border text-sm transition-all focus:outline-none focus:ring-2 ${
+                        isDark
+                          ? 'bg-slate-600 border-slate-500 focus:ring-blue-500 text-white placeholder-gray-400'
+                          : 'bg-white border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
+                      }`}
+                    />
+                  </div>
                   <button
-                    onClick={copyToClipboard}
-                    className={`px-4 py-3 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                    onClick={addBot}
+                    className={`w-full px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 text-sm ${
                       isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
                     }`}
                   >
-                    <Copy className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
+                    Add Bot
                   </button>
                 </div>
               </div>
+
+              {/* Saved Bots List */}
+              {bots.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-sm font-semibold mb-3">Connected Bots ({bots.length})</h3>
+                  <div className="space-y-2">
+                    {bots.map((bot) => (
+                      <div
+                        key={bot.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                          isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{bot.name}</p>
+                          <p className={`text-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            ID: {bot.chatId}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 ml-2">
+                          <button
+                            onClick={() => copyToClipboard(bot.chatId)}
+                            className={`p-2 rounded transition-all ${isDark ? 'hover:bg-slate-600' : 'hover:bg-gray-200'}`}
+                            title="Copy Chat ID"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => removeBot(bot.id)}
+                            className={`p-2 rounded transition-all ${isDark ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-100'}`}
+                            title="Remove bot"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Message */}
               <div className="mb-6">
@@ -202,14 +298,15 @@ export default function Page() {
               {/* Buttons */}
               <div className="flex gap-3">
                 <button
-                  onClick={sendMessage}
-                  disabled={isLoading}
+                  onClick={sendMessageToAllBots}
+                  disabled={isLoading || bots.length === 0}
                   className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
                     isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={bots.length === 0 ? 'Add at least one bot first' : `Send to ${bots.length} bot(s)`}
                 >
                   {isLoading ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
-                  {isLoading ? 'Sending...' : 'Send Message'}
+                  {isLoading ? 'Sending...' : `Send to All (${bots.length})`}
                 </button>
                 <button
                   onClick={() => {
@@ -219,6 +316,7 @@ export default function Page() {
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
                   }`}
+                  title="Clear message"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
