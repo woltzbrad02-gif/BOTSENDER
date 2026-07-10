@@ -1,392 +1,208 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Send, Copy, Trash2, Moon, Sun, Plus, Upload } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import Link from 'next/link';
+import { ArrowRight, TrendingUp, Shield, Users, Zap } from 'lucide-react';
+import { motion } from 'framer-motion';
 
-interface BotConfig {
-  id: string;
-  token: string;
-  chatId: string;
-  name: string;
-}
+const features = [
+  {
+    icon: TrendingUp,
+    title: 'Smart Investments',
+    description: 'Choose from curated investment plans with competitive returns',
+  },
+  {
+    icon: Shield,
+    title: 'Secure & Trusted',
+    description: 'Bank-grade security protecting your assets 24/7',
+  },
+  {
+    icon: Users,
+    title: 'Referral Rewards',
+    description: 'Earn passive income by referring friends and family',
+  },
+  {
+    icon: Zap,
+    title: 'Instant Access',
+    description: 'Real-time dashboards and quick withdrawal requests',
+  },
+];
 
-export default function Page() {
-  const [bots, setBots] = useState<BotConfig[]>([]);
-  const [newBotToken, setNewBotToken] = useState('');
-  const [newChatId, setNewChatId] = useState('');
-  const [newBotName, setNewBotName] = useState('');
-  const [message, setMessage] = useState('');
-  const [isDark, setIsDark] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error' | null; text: string }>({ type: null, text: '' });
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('telegramBotSender');
-    if (saved) {
-      const data = JSON.parse(saved);
-      setBots(data.bots || []);
-      setIsDark(data.isDark || false);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('telegramBotSender', JSON.stringify({ bots, isDark }));
-  }, [bots, isDark]);
-
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDark]);
-
-  const autoExpandTextarea = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
-    }
+export default function Home() {
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.2,
+        delayChildren: 0.3,
+      },
+    },
   };
 
-  const addBot = () => {
-    if (!newBotToken.trim()) {
-      setStatus({ type: 'error', text: 'Please enter a bot token' });
-      return;
-    }
-    if (!newChatId.trim()) {
-      setStatus({ type: 'error', text: 'Please enter a chat ID' });
-      return;
-    }
-
-    const newBot: BotConfig = {
-      id: Date.now().toString(),
-      token: newBotToken,
-      chatId: newChatId,
-      name: newBotName || `Bot ${bots.length + 1}`,
-    };
-
-    setBots([...bots, newBot]);
-    setNewBotToken('');
-    setNewChatId('');
-    setNewBotName('');
-    setStatus({ type: 'success', text: 'Bot added successfully!' });
-    setTimeout(() => setStatus({ type: null, text: '' }), 2000);
-  };
-
-  const removeBot = (id: string) => {
-    setBots(bots.filter(bot => bot.id !== id));
-    setStatus({ type: 'success', text: 'Bot removed' });
-    setTimeout(() => setStatus({ type: null, text: '' }), 2000);
-  };
-
-  const importFromExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[];
-
-        let importedCount = 0;
-        const newBots: BotConfig[] = [];
-
-        rows.forEach((row, index) => {
-          if (Array.isArray(row) && row.length >= 2) {
-            const token = row[0]?.toString().trim();
-            const chatId = row[1]?.toString().trim();
-            const name = row[2]?.toString().trim() || `Imported Bot ${index + 1}`;
-
-            if (token && chatId) {
-              newBots.push({
-                id: Date.now().toString() + Math.random(),
-                token,
-                chatId,
-                name,
-              });
-              importedCount++;
-            }
-          }
-        });
-
-        if (importedCount > 0) {
-          setBots([...bots, ...newBots]);
-          setStatus({ type: 'success', text: `Successfully imported ${importedCount} bot(s)!` });
-        } else {
-          setStatus({ type: 'error', text: 'No valid bots found in Excel file' });
-        }
-      } catch (error) {
-        setStatus({ type: 'error', text: 'Error reading Excel file. Make sure format is correct.' });
-      }
-    };
-    reader.readAsBinaryString(file);
-    event.target.value = '';
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setStatus({ type: 'success', text: 'Copied!' });
-    setTimeout(() => setStatus({ type: null, text: '' }), 2000);
-  };
-
-  const sendMessageToAllBots = async () => {
-    if (bots.length === 0) {
-      setStatus({ type: 'error', text: 'Please add at least one bot' });
-      return;
-    }
-    if (!message.trim()) {
-      setStatus({ type: 'error', text: 'Please enter a message' });
-      return;
-    }
-
-    setIsLoading(true);
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const bot of bots) {
-      try {
-        const response = await fetch(`https://api.telegram.org/bot${bot.token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: bot.chatId, text: message }),
-        });
-
-        const data = await response.json();
-        if (data.ok) {
-          successCount++;
-        } else {
-          failureCount++;
-        }
-      } catch (error) {
-        failureCount++;
-      }
-    }
-
-    setIsLoading(false);
-    if (failureCount === 0) {
-      setStatus({ type: 'success', text: `Message sent to all ${successCount} bot(s)!` });
-      setMessage('');
-      autoExpandTextarea();
-    } else {
-      setStatus({ type: 'error', text: `Sent: ${successCount}, Failed: ${failureCount}` });
-    }
-    setTimeout(() => setStatus({ type: null, text: '' }), 3000);
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8 },
+    },
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-slate-950 text-white' : 'bg-gradient-to-br from-blue-50 to-indigo-100 text-gray-900'}`}>
-      <style>{`
-        * { box-sizing: border-box; }
-        ::selection { background: ${isDark ? '#3b82f6' : '#dbeafe'}; color: ${isDark ? '#fff' : '#1e40af'}; }
-      `}</style>
-
-      <div className="relative min-h-screen flex flex-col">
-        {/* Header */}
-        <header className={`border-b backdrop-blur-md ${isDark ? 'border-slate-800 bg-slate-900/80' : 'border-blue-200 bg-white/80'}`}>
-          <div className="max-w-2xl mx-auto px-6 py-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-900' : 'bg-blue-100'}`}>
-                <Send className={`w-6 h-6 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">Telegram Bot Sender</h1>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Send messages instantly via Telegram Bot API</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsDark(!isDark)}
-              className={`p-2 rounded-lg transition-all ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-blue-100 hover:bg-blue-200'}`}
-              aria-label="Toggle dark mode"
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full z-50 border-b border-border/50 backdrop-blur-md bg-background/80">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <Link href="/" className="text-2xl font-bold">
+            <span className="text-primary">Prime</span>
+            <span className="text-secondary">Invest</span>
+          </Link>
+          <div className="flex gap-4">
+            <Link
+              href="/login"
+              className="px-6 py-2 text-foreground hover:text-primary transition-colors"
             >
-              {isDark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
-            </button>
+              Login
+            </Link>
+            <Link
+              href="/register"
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
+            >
+              Get Started
+            </Link>
           </div>
-        </header>
+        </div>
+      </nav>
 
-        {/* Main Content */}
-        <main className="flex-1 py-8 px-4">
-          <div className="w-full max-w-3xl mx-auto">
-            <div className={`rounded-2xl shadow-xl backdrop-blur-sm p-8 border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white/90 border-blue-200'}`}>
-              {/* Bot Configuration Section */}
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold">Manage Bots</h2>
-                  <label className={`px-3 py-2 rounded-lg font-medium transition-all flex items-center gap-2 cursor-pointer text-sm ${
-                    isDark ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400' : 'bg-green-100 hover:bg-green-200 text-green-700'
-                  }`}>
-                    <Upload className="w-4 h-4" />
-                    Import Excel
-                    <input
-                      type="file"
-                      accept=".xlsx,.xls,.csv"
-                      onChange={importFromExcel}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <div className={`p-4 rounded-lg border ${isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
-                  <div className="grid gap-3 md:grid-cols-3 md:gap-2 mb-3">
-                    <input
-                      type="text"
-                      value={newBotName}
-                      onChange={(e) => setNewBotName(e.target.value)}
-                      placeholder="Bot name (e.g., 'News Bot')"
-                      className={`px-3 py-2 rounded-lg border text-sm transition-all focus:outline-none focus:ring-2 ${
-                        isDark
-                          ? 'bg-slate-600 border-slate-500 focus:ring-blue-500 text-white placeholder-gray-400'
-                          : 'bg-white border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
-                      }`}
-                    />
-                    <input
-                      type="password"
-                      value={newBotToken}
-                      onChange={(e) => setNewBotToken(e.target.value)}
-                      placeholder="Bot token"
-                      className={`px-3 py-2 rounded-lg border text-sm transition-all focus:outline-none focus:ring-2 ${
-                        isDark
-                          ? 'bg-slate-600 border-slate-500 focus:ring-blue-500 text-white placeholder-gray-400'
-                          : 'bg-white border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
-                      }`}
-                    />
-                    <input
-                      type="text"
-                      value={newChatId}
-                      onChange={(e) => setNewChatId(e.target.value)}
-                      placeholder="Chat ID"
-                      className={`px-3 py-2 rounded-lg border text-sm transition-all focus:outline-none focus:ring-2 ${
-                        isDark
-                          ? 'bg-slate-600 border-slate-500 focus:ring-blue-500 text-white placeholder-gray-400'
-                          : 'bg-white border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
-                      }`}
-                    />
-                  </div>
-                  <button
-                    onClick={addBot}
-                    className={`w-full px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 text-sm ${
-                      isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
-                    }`}
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Bot
-                  </button>
-                </div>
-              </div>
+      {/* Hero Section */}
+      <section className="min-h-screen flex items-center justify-center pt-20 px-6 relative overflow-hidden">
+        {/* Gradient background */}
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-secondary/10 rounded-full blur-3xl"></div>
+        </div>
 
-              {/* Saved Bots List */}
-              {bots.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-sm font-semibold mb-3">Connected Bots ({bots.length})</h3>
-                  <div className="space-y-2">
-                    {bots.map((bot) => (
-                      <div
-                        key={bot.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border ${
-                          isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{bot.name}</p>
-                          <p className={`text-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            ID: {bot.chatId}
-                          </p>
-                        </div>
-                        <div className="flex gap-2 ml-2">
-                          <button
-                            onClick={() => copyToClipboard(bot.chatId)}
-                            className={`p-2 rounded transition-all ${isDark ? 'hover:bg-slate-600' : 'hover:bg-gray-200'}`}
-                            title="Copy Chat ID"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => removeBot(bot.id)}
-                            className={`p-2 rounded transition-all ${isDark ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-100'}`}
-                            title="Remove bot"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+        <motion.div
+          className="max-w-3xl text-center"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <motion.h1 variants={itemVariants} className="text-6xl md:text-7xl font-bold mb-6 leading-tight">
+            Invest Smart, Earn <span className="text-primary">Passive Income</span>
+          </motion.h1>
 
-              {/* Message */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-semibold">Message</label>
-                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{message.length} / 4096</span>
-                </div>
-                <textarea
-                  ref={textareaRef}
-                  value={message}
-                  onChange={(e) => {
-                    setMessage(e.target.value);
-                    autoExpandTextarea();
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
-                      sendMessage();
-                    }
-                  }}
-                  placeholder="Type your message here... (Ctrl+Enter to send)"
-                  maxLength={4096}
-                  className={`w-full px-4 py-3 rounded-lg border transition-all focus:outline-none focus:ring-2 resize-none ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 focus:ring-blue-500 text-white placeholder-gray-500'
-                      : 'bg-gray-50 border-gray-300 focus:ring-blue-400 text-gray-900 placeholder-gray-400'
-                  }`}
-                  style={{ minHeight: '120px', maxHeight: '200px' }}
-                />
-              </div>
+          <motion.p variants={itemVariants} className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Join thousands of investors building wealth through Prime Invest. Secure, transparent, and rewarding investment opportunities designed for you.
+          </motion.p>
 
-              {/* Status Message */}
-              {status.type && (
-                <div className={`mb-6 p-3 rounded-lg text-sm font-medium transition-all ${
-                  status.type === 'success'
-                    ? isDark ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800'
-                    : isDark ? 'bg-red-900/50 text-red-300' : 'bg-red-100 text-red-800'
-                }`}>
-                  {status.text}
-                </div>
-              )}
+          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/register"
+              className="px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 transition-all flex items-center justify-center gap-2 group"
+            >
+              Start Investing
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </Link>
+            <Link
+              href="#features"
+              className="px-8 py-4 border border-primary text-primary rounded-lg font-semibold hover:bg-primary/10 transition-all"
+            >
+              Learn More
+            </Link>
+          </motion.div>
+        </motion.div>
+      </section>
 
-              {/* Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={sendMessageToAllBots}
-                  disabled={isLoading || bots.length === 0}
-                  className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
-                    isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title={bots.length === 0 ? 'Add at least one bot first' : `Send to ${bots.length} bot(s)`}
+      {/* Features Section */}
+      <section id="features" className="py-20 px-6 bg-card/50">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            className="text-center mb-16"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+          >
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">Why Choose Prime Invest?</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Experience the perfect balance of security, transparency, and profitability
+            </p>
+          </motion.div>
+
+          <motion.div
+            className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+          >
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <motion.div
+                  key={index}
+                  variants={itemVariants}
+                  className="p-6 rounded-xl border border-border/50 bg-background/50 backdrop-blur hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10"
                 >
-                  {isLoading ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
-                  {isLoading ? 'Sending...' : `Send to All (${bots.length})`}
-                </button>
-                <button
-                  onClick={() => {
-                    setMessage('');
-                    autoExpandTextarea();
-                  }}
-                  className={`px-4 py-3 rounded-lg font-medium transition-all ${
-                    isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-                  }`}
-                  title="Clear message"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <Icon className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-20 px-6">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
+          {[
+            { label: 'Active Users', value: '10,000+' },
+            { label: 'Total Invested', value: '$50M+' },
+            { label: 'Average Returns', value: '24%' },
+          ].map((stat, index) => (
+            <motion.div
+              key={index}
+              className="text-center"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              viewport={{ once: true }}
+            >
+              <div className="text-4xl font-bold text-primary mb-2">{stat.value}</div>
+              <div className="text-muted-foreground">{stat.label}</div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 px-6 bg-gradient-to-r from-primary/5 to-secondary/5">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-4xl font-bold mb-4">Ready to Start Your Investment Journey?</h2>
+          <p className="text-muted-foreground mb-8 text-lg">
+            Join the Prime Invest community and unlock your financial potential today
+          </p>
+          <Link
+            href="/register"
+            className="px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 transition-all inline-flex items-center gap-2 group"
+          >
+            Create Your Account
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border/50 bg-background/50 backdrop-blur py-8 px-6">
+        <div className="max-w-7xl mx-auto text-center text-muted-foreground">
+          <p>&copy; 2024 Prime Invest. All rights reserved. | Secure Investment Platform</p>
+        </div>
+      </footer>
     </div>
   );
 }
