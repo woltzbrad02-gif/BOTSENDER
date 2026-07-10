@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Copy, Trash2, Moon, Sun, Plus } from 'lucide-react';
+import { Send, Copy, Trash2, Moon, Sun, Plus, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface BotConfig {
   id: string;
@@ -78,6 +79,53 @@ export default function Page() {
     setBots(bots.filter(bot => bot.id !== id));
     setStatus({ type: 'success', text: 'Bot removed' });
     setTimeout(() => setStatus({ type: null, text: '' }), 2000);
+  };
+
+  const importFromExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[];
+
+        let importedCount = 0;
+        const newBots: BotConfig[] = [];
+
+        rows.forEach((row, index) => {
+          if (Array.isArray(row) && row.length >= 2) {
+            const token = row[0]?.toString().trim();
+            const chatId = row[1]?.toString().trim();
+            const name = row[2]?.toString().trim() || `Imported Bot ${index + 1}`;
+
+            if (token && chatId) {
+              newBots.push({
+                id: Date.now().toString() + Math.random(),
+                token,
+                chatId,
+                name,
+              });
+              importedCount++;
+            }
+          }
+        });
+
+        if (importedCount > 0) {
+          setBots([...bots, ...newBots]);
+          setStatus({ type: 'success', text: `Successfully imported ${importedCount} bot(s)!` });
+        } else {
+          setStatus({ type: 'error', text: 'No valid bots found in Excel file' });
+        }
+      } catch (error) {
+        setStatus({ type: 'error', text: 'Error reading Excel file. Make sure format is correct.' });
+      }
+    };
+    reader.readAsBinaryString(file);
+    event.target.value = '';
   };
 
   const copyToClipboard = (text: string) => {
@@ -166,7 +214,21 @@ export default function Page() {
             <div className={`rounded-2xl shadow-xl backdrop-blur-sm p-8 border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white/90 border-blue-200'}`}>
               {/* Bot Configuration Section */}
               <div className="mb-8">
-                <h2 className="text-lg font-bold mb-4">Manage Bots</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold">Manage Bots</h2>
+                  <label className={`px-3 py-2 rounded-lg font-medium transition-all flex items-center gap-2 cursor-pointer text-sm ${
+                    isDark ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400' : 'bg-green-100 hover:bg-green-200 text-green-700'
+                  }`}>
+                    <Upload className="w-4 h-4" />
+                    Import Excel
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={importFromExcel}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
                 <div className={`p-4 rounded-lg border ${isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
                   <div className="grid gap-3 md:grid-cols-3 md:gap-2 mb-3">
                     <input
